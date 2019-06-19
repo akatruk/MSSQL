@@ -1,0 +1,18 @@
+-- Using CDC
+use AdventureWorks2014
+go
+
+-- Change dbowner
+exec sp_changedbowner 'sa'
+go
+
+-- Enable CDC on database
+exec sys.sp_cdc_enable_db
+go
+
+-- Enable CDC on specific table [Person].[ContactType]
+exec sys.sp_cdc_enable_table
+@source_schema = N'Person',
+@source_name = N'ContactType',
+@role_name=null,
+@capture_instance=null
