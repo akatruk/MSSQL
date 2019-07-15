@@ -1,3 +1,5 @@
+SET UNSI ON
+
 -- Using CDC
 use AdventureWorks2014
 go
