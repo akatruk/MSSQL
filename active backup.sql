@@ -1,3 +1,4 @@
+
 SELECT session_id as SPID, command, a.text AS Query
 , start_time, percent_complete
 , dateadd(second,estimated_completion_time/1000
