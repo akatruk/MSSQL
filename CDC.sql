@@ -1,7 +1,7 @@
 SET UNSI ON
 
 -- Using CDC
-use AdventureWorks2014
+use [DB_name]
 go
 
 -- Change dbowner
@@ -13,11 +13,7 @@ exec sys.sp_cdc_enable_db
 go
 
 -- Enable CDC on specific table [Person].[ContactType]
-exec sys.sp_cdc_enable_table
-@source_schema = N'Person',
-@source_name = N'ContactType',
-@role_name=null,
-@capture_instance=null
+exec sys.sp_cdc_enable_table @source_schema = N'dbo', @source_name = N'ContactType', @role_name=null, @capture_instance=null
 
 ----------
 -- Enable CDC CURSOR
