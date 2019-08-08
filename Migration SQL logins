@@ -1,5 +1,4 @@
--- using store PROCEDURE EXEC sp_help_revlogin
-
+-- EXEC sp_help_revlogin
 
 
 USE master
