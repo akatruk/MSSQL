@@ -19,8 +19,8 @@ go
 exec sys.sp_cdc_enable_table @source_schema = N'dbo', @source_name = N'test', @role_name=null, @capture_instance=null
 
 ----------
--- Enable CDC CURSOR
-USE TPCentralDB
+-- Enable all tables by CDC CURSOR
+USE test
 go
 exec sp_changedbowner 'sa'
 go
