@@ -1,0 +1,97 @@
+DECLARE @table TABLE  (blocking_session_id BIGINT
+                    , login_name	varchar (50)
+					,wait_duration_ms BIGINT
+                    ,percent_complete bigint
+					,resource_database_id varchar (100)
+					,[command] varchar (20)
+					,[text] varchar (max)
+                    )
+DECLARE @tableHTML NVARCHAR(MAX)
+					
+					;WITH [Blocking]
+					AS (SELECT w.[session_id]
+					   ,s.[original_login_name]
+					   ,s.[login_name]
+					   ,w.[wait_duration_ms]
+					   ,w.[wait_type]
+					   ,r.[status]
+					   ,r.[wait_resource]
+					   ,w.[resource_description]
+					   ,s.[program_name]
+					   ,w.[blocking_session_id]
+					   ,s.[host_name]
+					   ,r.[command]
+					   ,r.[percent_complete]
+					   ,r.[cpu_time]
+					   ,r.[total_elapsed_time]
+					   ,r.[reads]
+					   ,r.[writes]
+					   ,r.[logical_reads]
+					   ,r.[row_count]
+					   ,q.[text]
+					   ,q.[dbid]
+					   ,p.[query_plan]
+					   ,r.[plan_handle]
+					 FROM [sys].[dm_os_waiting_tasks] w
+					 INNER JOIN [sys].[dm_exec_sessions] s ON w.[session_id] = s.[session_id]
+					 INNER JOIN [sys].[dm_exec_requests] r ON s.[session_id] = r.[session_id]
+					 CROSS APPLY [sys].[dm_exec_sql_text](r.[plan_handle]) q
+					 CROSS APPLY [sys].[dm_exec_query_plan](r.[plan_handle]) p
+					 WHERE w.[session_id] > 50
+					  AND w.[wait_type] NOT IN ('DBMIRROR_DBM_EVENT'
+						  ,'ASYNC_NETWORK_IO'))
+					, CTE AS 
+					(
+								SELECT b.[blocking_session_id] AS [SessionID]
+									  ,b.[login_name] AS N'login name'
+									  ,b.[wait_duration_ms] / 60000 AS N'ожидание запроса, мин'
+									  ,b.[percent_complete] AS N'% завершения запроса'
+									  ,DB_NAME(t.[resource_database_id]) AS N'Имя БД'
+									  ,b.[command] AS N'Тип операции'
+									  ,b.[text] AS N'Текст запроса'
+								FROM	[Blocking] b
+								INNER JOIN [sys].[dm_exec_sessions] s1
+								ON		b.[blocking_session_id] = s1.[session_id]
+								INNER JOIN [sys].[dm_tran_locks] t
+								ON		t.[request_session_id] = b.[session_id]
+								WHERE	t.[request_status] = 'WAIT'
+								AND		b.[wait_duration_ms] > 600000
+					)
+				
+INSERT INTO @table
+SELECT *
+FROM CTE;
+
+IF EXISTS (SELECT * FROM @table)
+BEGIN 
+SET @tableHTML = 
+N'<H1></H1>
+<table border="2">
+<tr>
+<th>session_id</th>
+<th>login name</th>
+<th>ожидание запроса, мин</th>
+<th>Имя БД</th>
+<th>Тип операции</th>
+<th>Текст запроса</th>
+<tr>' +
+--	
+CAST ( ( 
+SELECT 
+      td = blocking_session_id , ''
+      ,td = login_name , ''
+      ,td = wait_duration_ms , ''
+      ,td = resource_database_id , ''
+      ,td = command , ''
+      ,td = text
+FROM @table
+FOR XML PATH('tr')) AS NVARCHAR(MAX) ) +  
+N'</table>' ;
+
+EXEC msdb.dbo.sp_send_dbmail  
+@profile_name = 'sql_notification',
+@recipients='Aleksey.Orehov@leroymerlin.ru; andrey.katruk@leroymerlin.ru; Andrey.Nazarov@leroymerlin.ru',   
+@subject = 'ALERT: Блокирова запроса > 10 min',  
+@body = @tableHTML,
+@body_format = 'HTML';
+END
