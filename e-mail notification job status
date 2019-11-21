@@ -1,0 +1,51 @@
+SELECT
+  [sJOB].[name] AS [Имя Джоба],
+  [sJSTP].[step_name] AS [Название не выполеннного шага],
+  [sJSTP].[step_id] AS [Номер шага],
+  CASE [sJSTP].[last_run_date] 
+    WHEN 0 THEN NULL
+    ELSE msdb.dbo.agent_datetime(last_run_date, last_run_time)
+  END AS [Время последнего запуска] 
+INTO #table
+FROM [msdb].[dbo].[sysjobsteps] AS [sJSTP]
+  JOIN [msdb].[dbo].[sysjobs] AS [sJOB]
+    ON [sJSTP].[job_id] = [sJOB].[job_id]
+WHERE [sJSTP].[last_run_outcome] = '0'
+  AND CASE [sJSTP].[last_run_date] 
+        WHEN 0 THEN NULL
+        ELSE msdb.dbo.agent_datetime(last_run_date, last_run_time)
+      END >= Convert(Date, GetDate(), 101);
+
+DECLARE @HTML NVARCHAR(MAX) =  N'<H1>DATABLENDER Ежесуточный отчет по не выполненым джобам (отчет формируется автоматически в 11:00)</H1>';
+
+IF EXISTS (SELECT * FROM #table)
+  SET @HTML = @HTML +
+    N'<table border="2">
+      <tr>
+        <th>Имя Джоба</th>
+        <th>Название не выполеннного шага</th>
+        <th>Номер шага</th>
+        <th>Время последнего запуска</th>
+      <tr>' +
+    --  
+    CAST ( ( 
+      SELECT 
+        [Имя Джоба] AS td, '',
+        [Название не выполеннного шага] AS td , '',
+        [Номер шага] AS td, '',
+        [Время последнего запуска] AS td, ''
+      FROM #table
+      FOR XML PATH('tr')) AS NVARCHAR(MAX) ) +  
+    N'</table>';
+ELSE
+  SET @HTML = @HTML + '<p>Сегодня нет не выполненных джобов</p>';
+
+DROP TABLE #table;
+PRINT @HTML;
+
+EXEC msdb.dbo.sp_send_dbmail  
+@profile_name = 'sql_notification',
+@recipients='Aleksei.Burenin@leroymerlin.ru; andrey.katruk@leroymerlin.ru; Andrey.Nazarov@leroymerlin.ru',   
+@subject = 'Ежедневный отчет по джобам',  
+@body = @HTML,
+@body_format = 'HTML';
